@@ -1,0 +1,78 @@
+Exception Code : E06D7363 
+Crash Address:  75A3B532 01:0013A532 C:\windows\System32\KERNELBASE.dll
+
+CPU:
+EAX:031DF4B8
+EBX:031DF568
+ECX:00000003
+EDX:00000000
+ESI:003079E8
+EDI:0031D67C
+CS:EIP:0023:75A3B532
+SS:ESP:002B:031DF4B8  EBP:031DF514
+DS:002B  ES:002B  FS:0053  GS:002B
+Flags:00000216
+
+PDB Search Path:.;F:\working data\linux_bms\mfgtool-bms\
+
+Call Stack:
+Address   Frame     Function            SourceFile
+75A3B532  031DF514  FrmAddr Failed:870001:0013A532 C:\windows\System32\KERNELBASE.dll
+002AD321  031DF558  FrmAddr Failed:870001:0013C321 F:\working data\linux_bms\mfgtool-bms\MfgTool2.exe
+00185F61  031DF56C  FrmAddr Failed:870001:00014F61 F:\working data\linux_bms\mfgtool-bms\MfgTool2.exe
+00179B9F  031DF5B4  FrmAddr Failed:870001:00008B9F F:\working data\linux_bms\mfgtool-bms\MfgTool2.exe
+7B9E5989  031DF5F0  FrmAddr Failed:870001:00004989 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7B9E5B05  031DF5FC  FrmAddr Failed:870001:00004B05 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7B9EF8AA  031DF61C  FrmAddr Failed:870001:0000E8AA F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7B9EE94B  031DF69C  FrmAddr Failed:870001:0000D94B F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7BA15DFD  031DF6B8  FrmAddr Failed:870001:00034DFD F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7BA15A71  031DF6CC  FrmAddr Failed:870001:00034A71 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7BA15FCA  031DF6D8  FrmAddr Failed:870001:00034FCA F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7BA15B64  031DF6E4  FrmAddr Failed:870001:00034B64 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7BA15B15  031DF710  FrmAddr Failed:870001:00034B15 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7BA16319  031DF7C0  FrmAddr Failed:870001:00035319 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+7BB4765C  031DF7FC  FrmAddr Failed:870001:0016665C F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+76C5FCC9  031DF80C  FrmAddr Failed:870001:0000FCC9 C:\windows\System32\KERNEL32.DLL
+775282AE  031DF868  FrmAddr Failed:870001:000672AE C:\windows\SYSTEM32\ntdll.dll
+7752827E  031DF878  FrmAddr Failed:870001:0006727E C:\windows\SYSTEM32\ntdll.dll
+Stack Param Info:
+
+Call Stack:
+Address   Frame     Function            SourceFile
+75A3B532  031DF514  FrmAddr Failed:870001:0013A532 C:\windows\System32\KERNELBASE.dll
+
+002AD321  031DF558  FrmAddr Failed:870001:0013C321 F:\working data\linux_bms\mfgtool-bms\MfgTool2.exe
+
+00185F61  031DF56C  FrmAddr Failed:870001:00014F61 F:\working data\linux_bms\mfgtool-bms\MfgTool2.exe
+
+00179B9F  031DF5B4  FrmAddr Failed:870001:00008B9F F:\working data\linux_bms\mfgtool-bms\MfgTool2.exe
+
+7B9E5989  031DF5F0  FrmAddr Failed:870001:00004989 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7B9E5B05  031DF5FC  FrmAddr Failed:870001:00004B05 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7B9EF8AA  031DF61C  FrmAddr Failed:870001:0000E8AA F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7B9EE94B  031DF69C  FrmAddr Failed:870001:0000D94B F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7BA15DFD  031DF6B8  FrmAddr Failed:870001:00034DFD F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7BA15A71  031DF6CC  FrmAddr Failed:870001:00034A71 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7BA15FCA  031DF6D8  FrmAddr Failed:870001:00034FCA F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7BA15B64  031DF6E4  FrmAddr Failed:870001:00034B64 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7BA15B15  031DF710  FrmAddr Failed:870001:00034B15 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7BA16319  031DF7C0  FrmAddr Failed:870001:00035319 F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+7BB4765C  031DF7FC  FrmAddr Failed:870001:0016665C F:\working data\linux_bms\mfgtool-bms\MfgToolLib.dll
+
+76C5FCC9  031DF80C  FrmAddr Failed:870001:0000FCC9 C:\windows\System32\KERNEL32.DLL
+
+775282AE  031DF868  FrmAddr Failed:870001:000672AE C:\windows\SYSTEM32\ntdll.dll
+
+7752827E  031DF878  FrmAddr Failed:870001:0006727E C:\windows\SYSTEM32\ntdll.dll
+
+

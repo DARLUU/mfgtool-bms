@@ -1,0 +1,250 @@
+<!--
+* Copyright (C) 2012, Freescale Semiconductor, Inc. All Rights Reserved.
+* The CFG element contains a list of recognized usb devices.
+*  DEV elements provide a name, class, vid and pid for each device.
+*
+* Each LIST element contains a list of update instructions.
+*  "Install" - Erase media and install firmware.
+*  "Update" - Update firmware only.
+*
+* Each CMD element contains one update instruction of attribute type.
+*  "pull" - Does UtpRead(body, file) transaction.
+*  "push" - Does UtpWrite(body, file) transaction.
+*  "drop" - Does UtpCommand(body) then waits for device to disconnect.
+*  "boot" - Finds configured device, forces it to "body" device and downloads "file".
+*  "find" - Waits for "timeout" seconds for the "body" device to connect.
+*  "show" - Parse and show device info in "file".  
+
+配置元素概述：
+CFG 元素：包含已识别USB设备的列表。
+DEV 元素：为每个USB设备提供规格，包括其名称、类别、供应商ID（vid）和产品ID（pid）。
+
+列表和命令指令：
+LIST 元素：包含更新指令列表，可以是 "Install"（擦除媒体并安装固件）或 "Update"（仅更新固件）。
+CMD 元素：
+	包含具有指定属性类型的单个更新指令：
+	pull：执行 UtpRead 操作，将数据从设备读取到文件中。
+	push：执行 UtpWrite 操作，将数据从文件写入到设备。
+	drop：执行 UtpCommand，然后等待设备断开连接。
+	boot：定位已配置的设备，强制它成为指定的“body”设备，并向其下载“file”。
+	find：等待指定的超时时间，以便“body”设备连接。
+	show：解析并显示文件中包含的设备信息。
+	
+BootStrap:引导程序
+-->
+
+
+<UCL>
+  <CFG>
+	<STATE name="BootStrap" dev="MX6UL" vid="15A2" pid="007D"/>
+    <STATE name="BootStrap" dev="MX6ULL" vid="15A2" pid="0080"/>
+    <STATE name="Updater"   dev="MSC" vid="066F" pid="37FF"/>
+  </CFG>
+
+	<!-- 加载引导程序，uboot、zImage、initrd、dtb，加载的位置分别为：0x80800000、0x83800000、0x83000000，
+	这里的位置与uboot中设置的加载位置一致：
+		uboot中设置DRAM中加载zImage、dtb、rootfs的地址：
+			zImage：#define CONFIG_SYS_LOAD_ADDR		CONFIG_LOADADDR	// 0x80800000，0x80000000-0x80800000-1是memtest空间
+			dtb："fdt_addr=0x83000000\0"	// 设备树加载位置
+			rootfs："initrd_addr=0x83800000\0"：在U-Boot（一种广泛使用的开源引导加载程序）中，
+				环境变量initrd_addr通常用来指定初始化RAM磁盘（initrd）的加载地址。
+				initrd是一个临时的根文件系统，通常用于系统启动过程中，在将控制权交给实际的根文件系统之前，为内核提供必要的驱动程序和工具。
+	另外，fireware固件这个文件夹不需要改动，因为其仅用来引导程序。
+	-->
+  <LIST name="SDCard" desc="Choose SD Card as media">
+	<CMD state="BootStrap" type="boot" body="BootStrap" file ="firmware/u-boot-imx6ull-14x14-sd.imx" ifdev="MX6ULL">Loading U-boot</CMD>
+		
+	<CMD state="BootStrap" type="load" file="firmware/zImage" address="0x80800000"
+		loadSection="OTH" setSection="OTH" HasFlashHeader="FALSE" ifdev="MX6ULL">Loading Kernel.</CMD>
+
+	<CMD state="BootStrap" type="load" file="firmware/fsl-image-mfgtool-initramfs-imx_mfgtools.cpio.gz.u-boot" address="0x83800000"
+		loadSection="OTH" setSection="OTH" HasFlashHeader="FALSE" ifdev="MX6ULL">Loading Initramfs.</CMD>
+
+	<CMD state="BootStrap" type="load" file="firmware/imx6ull-14x14-sd.dtb" address="0x83000000"
+		loadSection="OTH" setSection="OTH" HasFlashHeader="FALSE" ifdev="MX6ULL">Loading device tree.</CMD>
+
+
+	<CMD state="BootStrap" type="jump" > Jumping to OS image. </CMD>
+
+
+	<!-- 
+	/dev/mmcblk0:emmc是mmcblk1
+	sh：这是一个命令解释器，用于执行使用 Bourne shell 语法编写的脚本。sh 可以是系统默认的 shell，也可能是指向如 bash 或 dash 等更现代的 shell 的链接。
+	
+	-->
+	<!-- create partition -->
+	<CMD state="Updater" type="push" body="send" file="mksdcard.sh.tar">Sending partition shell</CMD>
+	<CMD state="Updater" type="push" body="$ tar -xf $FILE "> Partitioning...</CMD>
+	<CMD state="Updater" type="push" body="$ sh mksdcard.sh /dev/mmcblk0"> Partitioning...</CMD>
+
+	<!-- 
+	dd if=/dev/zero of=/dev/mmcblk0 bs=1k seek=768 conv=fsync count=8:	
+		用于从/dev/zero源读取8KB的零数据，并将其写入SD卡的第一个设备/dev/mmcblk0，从该设备的768KB位置开始，主要用途可能是安全地清除或准备该位置的数据。(bs:块的大小，seek：定位到768*bs位置，count：8*bs大小，fysnc：在传输完所有数据后，强制将输出文件的数据和元数据同步到磁盘。)
+	uboot的环境变量的位置在：0x000C 0000？（768KB=0x000C0000）
+	uboot.bin的位置在：0x0000 0400（1KB）
+
+	根据mksdcard.sh：
+		SD卡的前10M没有分区，用于存储uboot.bin和环境变量；
+		/dev/mmcblk0p1：第一个分区，从10MB开始，大小为128M，分区类型为c(FAT32 LBA)。存储zImage、dtb
+		/dev/mmcblk0p2：第二个分区，从138MB开始，大小为剩余所有空间，分区类型为83（Linux文件系统）。存储根文件系统
+	-->
+	<!-- burn uboot -->
+	<CMD state="Updater" type="push" body="$ dd if=/dev/zero of=/dev/mmcblk0 bs=1k seek=768 conv=fsync count=8">clear u-boot env</CMD>
+	<CMD state="Updater" type="push" body="send" file="files/boot/u-boot-imx6ull-bms-ddr512-nand-sd.imx" ifdev="MX6ULL">Sending u-boot.bin</CMD>
+	<CMD state="Updater" type="push" body="$ dd if=$FILE of=/dev/mmcblk0 bs=1k seek=1 conv=fsync">write u-boot.bin to sd card</CMD>
+
+	<!-- 
+	$ mkfs.vfat -F 32 -n \"boot\" /dev/mmcblk0p1"：
+		该命令用于在Linux和类Unix系统中格式化一个分区为FAT32文件系统。命令详解如下：
+		**mkfs.vfat**：这是一个命令行工具，用于创建一个VFAT文件系统（即FAT32是其一种）。VFAT是FAT文件系统的扩展，支持在文件名中使用长文件名。
+		**-F 32**：这个选项指定文件系统类型为FAT32。FAT32是一种广泛使用的文件系统，兼容多种操作系统，包括Windows和Linux。
+		-**-n"boot"**：这个选项用于指定卷标。在这里，卷标被设置为“boot”。卷标是一个标识卷的名字，可以在文件系统挂载后通过各种系统工具看到。
+
+
+
+	-->
+	<!-- format and mount boot partition -->
+	<CMD state="Updater" type="push" body="$ while [ ! -e /dev/mmcblk0p1 ]; do sleep 1; echo \"waiting...\"; done ">Waiting for the partition ready</CMD>
+	<CMD state="Updater" type="push" body="$ mkfs.vfat -F 32 -n \"boot\" /dev/mmcblk0p1">Formatting rootfs partition</CMD>
+	<CMD state="Updater" type="push" body="$ mkdir -p /mnt/mmcblk0p1"/>
+	<CMD state="Updater" type="push" body="$ mount -t vfat /dev/mmcblk0p1 /mnt/mmcblk0p1"/>
+
+	<!-- burn logo -->
+	<!--<CMD state="Updater" type="push" body="send" file="files/alientek.bmp">Sending logo</CMD>
+	<CMD state="Updater" type="push" body="$ cp $FILE /mnt/mmcblk0p1/alientek.bmp">write boot logo to sd card</CMD> >
+
+	<!-- burn zImage -->
+	<CMD state="Updater" type="push" body="send" file="files/boot/zImage">Sending kernel</CMD>
+	<CMD state="Updater" type="push" body="$ cp $FILE /mnt/mmcblk0p1/zImage">write kernel image to sd card</CMD>
+
+	<!-- burn dtb -->
+	<CMD state="Updater" type="push" body="send" file="files/boot/imx6ull-bms-nand.dtb" ifdev="MX6ULL">Sending Device Tree file</CMD>
+	<CMD state="Updater" type="push" body="$ cp $FILE /mnt/mmcblk0p1/imx6ull-bms-nand.dtb" ifdev="MX6ULL">write device tree to sd card</CMD>
+	
+	<CMD state="Updater" type="push" body="$ sleep 1">delay</CMD>
+	<CMD state="Updater" type="push" body="$ sync">Sync...</CMD>
+	<CMD state="Updater" type="push" body="$ umount /mnt/mmcblk0p1">Unmounting vfat partition</CMD>
+
+	<!-- format and mount rootfs partition -->
+	<CMD state="Updater" type="push" body="$ mkfs.ext3 -F -j -L \"rootfs\" /dev/mmcblk0p2">Formatting rootfs partition</CMD>
+	<CMD state="Updater" type="push" body="$ mkdir -p /mnt/mmcblk0p2"/>
+	<CMD state="Updater" type="push" body="$ mount -t ext3 /dev/mmcblk0p2 /mnt/mmcblk0p2"/>
+
+	<!-- burn rootfs -->
+	<CMD state="Updater" type="push" body="pipe tar -jxv -C /mnt/mmcblk0p2" file="files/filesystem/rootfs.tar.bz2" ifdev="MX6ULL">Sending and writting rootfs</CMD>
+	<CMD state="Updater" type="push" body="frf">Finishing rootfs write</CMD>
+	<!-- <CMD state="Updater" type="push" body="$ mkdir -p /mnt/mmcblk0p2/lib/modules">Mkdir -p /mnt/mmcblk0p2/lib/modules</CMD> -->
+	<!-- <CMD state="Updater" type="push" body="send" file="files/modules/modules.tar.bz2" ifdev="MX6ULL">Sending Modules file</CMD> -->
+	<!-- <CMD state="Updater" type="push" body="$ tar jxf $FILE -C /mnt/mmcblk0p2/lib/modules/" ifdev="MX6ULL">tar Modules file</CMD> -->
+	<CMD state="Updater" type="push" body="$ sleep 1">delay</CMD>
+	<CMD state="Updater" type="push" body="$ sync">Sync...</CMD>
+	<CMD state="Updater" type="push" body="$ umount /mnt/mmcblk0p2">Unmounting rootfs partition</CMD>
+	<CMD state="Updater" type="push" body="$ echo Update Complete!">Done</CMD>
+  </LIST>
+
+  <LIST name="NAND Flash" desc="Choose NAND as media">
+	<CMD state="BootStrap" type="boot" body="BootStrap" file ="firmware/u-boot-imx6ull-14x14-nand.imx" ifdev="MX6ULL">Loading U-boot</CMD>
+
+	<CMD state="BootStrap" type="load" file="firmware/zImage" address="0x80800000"
+		loadSection="OTH" setSection="OTH" HasFlashHeader="FALSE" ifdev="MX6ULL">Loading Kernel.</CMD>
+
+	<CMD state="BootStrap" type="load" file="firmware/fsl-image-mfgtool-initramfs-imx_mfgtools.cpio.gz.u-boot" address="0x83800000"
+				loadSection="OTH" setSection="OTH" HasFlashHeader="FALSE" ifdev="MX6ULL">Loading Initramfs.</CMD>
+
+	<CMD state="BootStrap" type="load" file="firmware/imx6ull-14x14-nand.dtb" address="0x83000000"
+		loadSection="OTH" setSection="OTH" HasFlashHeader="FALSE" ifdev="MX6ULL">Loading device tree.</CMD>
+
+	<CMD state="BootStrap" type="jump" > Jumping to OS image. </CMD>
+
+	<!-- 
+	nand分区：BootStrap中的uboot会将nand flash进行分区，根据环境变量bootargs。具体查看有道笔记：【mfgtool-nand分区-环境变量】
+	
+	命令 mount -t debugfs debugfs /sys/kernel/debug 用于在Linux系统中挂载debugfs（调试文件系统）。这是一个虚拟文件系统，提供了一个接口来访问内核的调试信息和控制某些内核参数，通常只在开发和调试过程中使用。
+	
+	flash_erase /dev/mtd0 0 0：从第一个MTD设备的开头开始，擦除整个设备的内容。
+		/dev/mtd0:第一个mtd设备（如nand、nor）
+		第一个0：从0位置开始擦除
+		第二个0：擦除的大小，为0表示擦除整个设备大小
+	kobs-ng init -x -v --chip_0_device_path=/dev/mtd0 $FILE：
+		这个命令使用 kobs-ng 工具来初始化NAND存储设备的启动流程。这里是对命令的详细解释：
+		kobs-ng：是一个针对NAND flash内存的启动流程（Boot Stream）的初始化工具。它用于在支持启动流程的NAND设备上编写引导加载程序和数据。
+		init：这是 kobs-ng 命令的一个选项，用于初始化NAND设备的启动流程。
+		-x：这个选项告诉 kobs-ng 以专家模式运行，允许用户提供更多的命令行参数，并且通常用于非标准操作。
+		-v：代表详细模式，这会使 kobs-ng 输出更多的信息，对调试和确认操作过程非常有用。
+		--chip_0_device_path=/dev/mtd0：这个选项指定了要初始化的NAND设备的路径。在这个例子中，它是 /dev/mtd0，通常指的是系统中的第一个MTD设备。
+		$FILE：这是要写入到NAND设备的文件的路径。这个文件应该包含了一个完整的启动流程映像，这可能包括引导加载程序（比如U-Boot）、内核映像、可能还有文件系统映像。
+	
+	-->
+	<!--burn the uboot to NAND: -->	
+	<CMD state="Updater" type="push" body="$ mount -t debugfs debugfs /sys/kernel/debug">Mounting debugfs</CMD>
+	<CMD state="Updater" type="push" body="$ flash_erase /dev/mtd0 0 0">Erasing Boot partition</CMD>
+	<CMD state="Updater" type="push" body="send" file="files/boot/u-boot-imx6ull-bms-ddr512-nand.imx" ifdev="MX6ULL">Sending u-boot.bin</CMD>
+	<CMD state="Updater" type="push" body="$ kobs-ng init -x -v --chip_0_device_path=/dev/mtd0 $FILE">Flashing Bootloader</CMD>
+
+	<!--erase env partition: -->
+	<CMD state="Updater" type="push" body="$ flash_erase /dev/mtd1 0 0">Erasing Env partition</CMD>
+
+	<!--burn the logo to NAND: -->
+	<!--<CMD state="Updater" type="push" body="$ flash_erase /dev/mtd2 0 0">Erasing Logo partition</CMD>
+	<CMD state="Updater" type="push" body="send" file="files/alientek.bmp">Sending Boot Logo</CMD>
+	<CMD state="Updater" type="push" body="$ nandwrite -p /dev/mtd2 $FILE">Flashing Logo</CMD>>
+
+	<!--burn the dtb to NAND: -->
+	<CMD state="Updater" type="push" body="$ flash_erase /dev/mtd3 0 0">Erasing dtb partition</CMD>
+	<CMD state="Updater" type="push" body="send" file="files/boot/imx6ull-bms-nand.dtb" ifdev="MX6ULL">Sending Device Tree file</CMD>
+	<CMD state="Updater" type="push" body="$ nandwrite -p /dev/mtd3 $FILE">Flashing dtb</CMD>
+
+	<!-- <CMD state="Updater" type="push" body="send" file="files/boot/imx6ull-14x14-nand-4.3-800x480-c.dtb" ifdev="MX6ULL">Sending Device Tree file</CMD> -->
+	<!-- <CMD state="Updater" type="push" body="$ nandwrite -s 0x20000 -p /dev/mtd3 $FILE">Flashing dtb</CMD> -->
+
+	<!-- <CMD state="Updater" type="push" body="send" file="files/boot/imx6ull-14x14-nand-7-800x480-c.dtb" ifdev="MX6ULL">Sending Device Tree file</CMD> -->
+	<!-- <CMD state="Updater" type="push" body="$ nandwrite -s 0x40000 -p /dev/mtd3 $FILE">Flashing dtb</CMD> -->
+
+	<!-- <CMD state="Updater" type="push" body="send" file="files/boot/imx6ull-14x14-nand-7-1024x600-c.dtb" ifdev="MX6ULL">Sending Device Tree file</CMD> -->
+	<!-- <CMD state="Updater" type="push" body="$ nandwrite -s 0x60000 -p /dev/mtd3 $FILE">Flashing dtb</CMD> -->
+
+	<!-- <CMD state="Updater" type="push" body="send" file="files/boot/imx6ull-14x14-nand-10.1-1280x800-c.dtb" ifdev="MX6ULL">Sending Device Tree file</CMD> -->
+	<!-- <CMD state="Updater" type="push" body="$ nandwrite -s 0x80000 -p /dev/mtd3 $FILE">Flashing dtb</CMD> -->
+	
+	<!-- <CMD state="Updater" type="push" body="send" file="files/boot/imx6ull-14x14-nand-hdmi.dtb" ifdev="MX6ULL">Sending Device Tree file</CMD> -->
+	<!-- <CMD state="Updater" type="push" body="$ nandwrite -s 0xa0000 -p /dev/mtd3 $FILE">Flashing dtb</CMD> -->
+	
+	<!-- <CMD state="Updater" type="push" body="send" file="files/boot/imx6ull-14x14-nand-vga.dtb" ifdev="MX6ULL">Sending Device Tree file</CMD> -->
+	<!-- <CMD state="Updater" type="push" body="$ nandwrite -s 0xc0000 -p /dev/mtd3 $FILE">Flashing dtb</CMD> -->
+
+	<!--burn the kernel to NAND: -->
+	<CMD state="Updater" type="push" body="$ flash_erase /dev/mtd4 0 0">Erasing Kernel partition</CMD>
+	<CMD state="Updater" type="push" body="send" file="files/boot/zImage">Sending kernel zImage</CMD>
+	<CMD state="Updater" type="push" body="$ nandwrite -p /dev/mtd4 $FILE">Flashing Kernel</CMD>
+
+	<!-- 
+	ubiformat /dev/mtd5:
+		命令 ubiformat 是用于格式化MTD设备为UBI（Unsorted Block Images）格式的工具。UBI是专为NAND设备设计的一种文件系统管理层，它在NAND设备和高级文件系统（如UBIFS）之间提供了一个抽象层。下面是这个命令的详细解释：
+		命令解析
+		ubiformat：这是用来格式化MTD设备以便用UBI来管理的工具。
+		/dev/mtd5：指定了要格式化的MTD设备。这里 /dev/mtd5 指的是第六个MTD设备（计数从0开始）。MTD设备是代表原始NAND或NOR闪存的设备节点。
+		
+	创建UBIFS文件系统:
+		ubiformat /dev/mtd5
+		ubiattach /dev/ubi_ctrl -m 5
+		ubimkvol /dev/ubi0 -Nrootfs -m
+	
+	-->
+	<!--burn the rootfs to NAND: -->
+	<CMD state="Updater" type="push" body="$ flash_erase /dev/mtd5 0 0">Erasing rootfs partition</CMD>
+	<CMD state="Updater" type="push" body="$ ubiformat /dev/mtd5"/>
+	<CMD state="Updater" type="push" body="$ ubiattach /dev/ubi_ctrl -m 5">Attaching UBI partition</CMD>
+	<CMD state="Updater" type="push" body="$ ubimkvol /dev/ubi0 -Nrootfs -m"/>
+	<CMD state="Updater" type="push" body="$ mkdir -p /mnt/mtd5"/>
+	<CMD state="Updater" type="push" body="$ mount -t ubifs ubi0:rootfs /mnt/mtd5"/>
+	<CMD state="Updater" type="push" body="pipe tar -jxv -C /mnt/mtd5" file="files/filesystem/rootfs.tar.bz2" ifdev="MX6ULL">Sending and writting rootfs</CMD>
+	<CMD state="Updater" type="push" body="frf">Finishing rootfs write</CMD>
+	<CMD state="Updater" type="push" body="send" file="files/modules/modules.tar.bz2" ifdev="MX6ULL">Sending Modules file</CMD>
+	<CMD state="Updater" type="push" body="$ mkdir -p /mnt/mtd5/lib/modules">mkdir -p /mnt/mtd5/lib/modules</CMD>
+	<CMD state="Updater" type="push" body="$ tar jxf $FILE -C /mnt/mtd5/lib/modules/" ifdev="MX6ULL">tar Modules file</CMD>
+	<CMD state="Updater" type="push" body="$ sleep 1">delay</CMD>
+	<CMD state="Updater" type="push" body="$ sync">Sync...</CMD>
+	<CMD state="Updater" type="push" body="$ umount /mnt/mtd5">Unmounting rootfs partition</CMD>
+	<CMD state="Updater" type="push" body="$ echo Update Complete!">Done</CMD>
+  </LIST>
+</UCL>
